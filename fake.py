@@ -111,6 +111,7 @@ class FakeCam:
         foreground_mask_image: str,
         webcam_path: str,
         v4l2loopback_path: str,
+        fakecam_path: str,
         ondemand: bool,
         background_mask_update_speed: int
     ) -> None:
@@ -148,6 +149,7 @@ class FakeCam:
         self.paused = False
         self.ondemand = ondemand
         self.v4l2loopback_path = v4l2loopback_path
+        self.fakecam_path = fakecam_path
         self.consumers = 0
 
     def shift_image(self, img, dx, dy):
@@ -321,7 +323,7 @@ then scale & crop the image so that its pixels retain their aspect ratio."""
         inotify = INotify(nonblocking=True)
         if self.ondemand:
             watch_flags = flags.CREATE | flags.OPEN | flags.CLOSE_NOWRITE| flags.CLOSE_WRITE
-            wd = inotify.add_watch(self.v4l2loopback_path, watch_flags)
+            wd = inotify.add_watch(self.fakecam_path, watch_flags)
             self.paused=True
 
         while True:
@@ -396,8 +398,10 @@ def parse_args():
                         help="Set real webcam codec")
     parser.add_argument("-w", "--webcam-path", default="/dev/video0",
                         help="Set real webcam path")
-    parser.add_argument("-v", "--v4l2loopback-path", default="/dev/video2",
+    parser.add_argument("-v", "--v4l2loopback-path", default="/dev/video4",
                         help="V4l2loopback device path")
+    parser.add_argument("-V", "--fakecam-path", default="/dev/video5",
+                        help="fakecam device path")
     parser.add_argument("-i", "--image-folder", default=".",
                         help="Folder which contains foreground and background images")
     parser.add_argument("--no-background", action="store_true",
@@ -427,11 +431,11 @@ def parse_args():
     return parser.parse_args()
 
 def sigint_handler(cam, signal, frame):
-    cam.toggle_pause()
-
-def sigquit_handler(cam, signal, frame):
     print("\nKilling fake cam process")
     sys.exit(0)
+
+def sigquit_handler(cam, signal, frame):
+    cam.toggle_pause()
 
 def getNextOddNumber(number):
     if number % 2 == 0:
@@ -465,13 +469,14 @@ def main():
         foreground_mask_image=findFile(args.foreground_mask_image, args.image_folder),
         webcam_path=args.webcam_path,
         v4l2loopback_path=args.v4l2loopback_path,
+        fakecam_path=args.fakecam_path,
         ondemand=not args.no_ondemand,
         background_mask_update_speed=getPercentage(args.background_mask_update_speed))
     signal.signal(signal.SIGINT, partial(sigint_handler, cam))
     signal.signal(signal.SIGQUIT, partial(sigquit_handler, cam))
     print("Running...")
-    print("Please CTRL-C to pause and reload the background / foreground images")
-    print("Please CTRL-\ to exit")
+    print("Please CTRL-\ to pause and reload the background / foreground images")
+    print("Please CTRL-C to exit")
     # frames forever
     cam.run()
 
